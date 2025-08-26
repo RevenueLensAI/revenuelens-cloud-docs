@@ -1,0 +1,11 @@
+# Exclude the terraform and ansible subdirectories (they have their own git repos)
+revenuelens-cloud-terraform/
+revenuelens-cloud-ansible/
+
+# General ignores
+.DS_Store
+*.log
+.env
+.env.local
+*.tmp
+*~
