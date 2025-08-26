@@ -9,3 +9,5 @@ revenuelens-cloud-ansible/
 .env.local
 *.tmp
 *~
+*.log
+*.json
