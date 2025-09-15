@@ -294,3 +294,5 @@ The following describes the application deployed on this AWS infrastructure. It 
 - **Inboxly**: Workspace mapping, campaign threshold configuration
 - **PostgreSQL**: Primary data store for accounts, deals, probabilities, and tokens
 - **Redis**: Session storage and caching layer, interprocess communication
+
+Ansible commands should be run by executing the appropriate github action.
