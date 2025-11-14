@@ -4,27 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is the RevenueLens DevOps infrastructure repository containing three main components:
-- **Root Directory** (`revenuelens/`): Main git repository for project coordination
-- **Terraform** (`revenuelens-cloud-terraform/`): AWS infrastructure provisioning (separate git repo)
-- **Ansible** (`revenuelens-cloud-ansible/`): Configuration management and deployment (separate git repo)
+This is the RevenueLens DevOps infrastructure repository containing four main components:
+- **Root Directory** (`revenuelens/`): Main git repository for project coordination and documentation
+- **Infrastructure Terraform** (`revenuelens-cloud-terraform/`): AWS infrastructure provisioning (separate git repo)
+- **Configuration Terraform** (`revenuelens-config-terraform/`): AWS-managed configuration via SSM Parameter Store and Secrets Manager (separate git repo)
+- **Ansible** (`revenuelens-cloud-ansible/`): Server configuration management and deployment (separate git repo)
 
 The infrastructure supports a multi-environment SaaS application with dev and prod environments.
 
 ## Repository Structure
 
-**IMPORTANT FOR CLAUDE:** This directory contains THREE separate Git repositories:
-- Root `revenuelens/` has its own `.git` directory (this repo)
-- `revenuelens-cloud-terraform/` has its own `.git` directory
-- `revenuelens-cloud-ansible/` has its own `.git` directory
+**IMPORTANT FOR CLAUDE:** This directory contains FOUR separate Git repositories:
+- Root `revenuelens/` has its own `.git` directory (this repo - documentation)
+- `revenuelens-cloud-terraform/` has its own `.git` directory (infrastructure)
+- `revenuelens-config-terraform/` has its own `.git` directory (application configuration)
+- `revenuelens-cloud-ansible/` has its own `.git` directory (server configuration)
 - When working with files, ALWAYS navigate to the appropriate subdirectory before running git commands
 
 ```
 revenuelens/
-├── .git/                         # Git repository for project coordination
+├── .git/                         # Git repository for project documentation
 ├── CLAUDE.md                     # This file
 ├── revenuelens-cloud-terraform/  # Infrastructure as Code (separate git repo)
-│   ├── .git/                     # Git repository for Terraform code
+│   ├── .git/                     # Git repository for Terraform infrastructure
 │   ├── envs/                     # Environment-specific configurations
 │   │   ├── dev/                  # Development environment
 │   │   └── prod/                 # Production environment
@@ -37,7 +39,19 @@ revenuelens/
 │       ├── s3/                   # Static asset storage
 │       ├── cloudfront/           # CDN
 │       └── secrets_manager/      # Credential storage
-└── revenuelens-cloud-ansible/    # Configuration management (separate git repo)
+├── revenuelens-config-terraform/ # Application configuration (separate git repo)
+│   ├── .git/                     # Git repository for Terraform configuration
+│   ├── envs/                     # Environment-specific configurations
+│   │   ├── dev/                  # Development configuration
+│   │   │   ├── *.auto.tfvars     # Service-specific configuration files
+│   │   │   ├── main.tf           # Module invocations
+│   │   │   └── variables.tf     # Variable declarations
+│   │   └── prod/                 # Production configuration
+│   │       └── (same structure)
+│   └── modules/                  # Reusable configuration modules
+│       ├── config-store/         # SSM Parameter Store and Secrets Manager
+│       └── iam-permissions/      # IAM policy for EC2 config access
+└── revenuelens-cloud-ansible/    # Server configuration (separate git repo)
     ├── .git/                     # Git repository for Ansible code
     ├── inventory/                # Environment inventories with EBS volume configs
     │   ├── dev/group_vars/all.yml # Dev environment variables
@@ -48,12 +62,13 @@ revenuelens/
         ├── docker/               # Docker and Docker Compose
         ├── application/          # App directories, certs, logs
         ├── ebs_volumes/          # EBS volume mounting and formatting
+        ├── config-sync/          # Sync config from AWS to /app/config/*.env
         └── monitoring/           # Log rotation, health checks
 ```
 
 ## Common Commands
 
-### Terraform Operations
+### Infrastructure Terraform Operations (revenuelens-cloud-terraform)
 ```bash
 # Navigate to environment directory
 cd revenuelens-cloud-terraform/envs/prod  # or dev
@@ -75,6 +90,30 @@ terraform show
 terraform destroy -var-file=terraform.tfvars
 ```
 
+### Configuration Terraform Operations (revenuelens-config-terraform)
+```bash
+# Navigate to environment directory
+cd revenuelens-config-terraform/envs/prod  # or dev
+
+# Initialize Terraform
+terraform init
+
+# Plan configuration changes (auto-loads *.auto.tfvars files)
+terraform plan
+
+# Apply configuration changes to AWS SSM Parameter Store
+terraform apply
+
+# View created SSM parameters
+terraform output -json ssm_parameter_names
+
+# View IAM policy ARN
+terraform output iam_policy_arn
+
+# IMPORTANT: After terraform apply, config syncs automatically to EC2 every 15 minutes
+# Or trigger manually: ssh ubuntu@instance 'sudo /usr/local/bin/revenuelens-config-sync.sh dev'
+```
+
 ### Ansible Operations
 ```bash
 # Navigate to Ansible directory
@@ -89,6 +128,9 @@ ansible-playbook -i inventory/prod/hosts.yml playbooks/application-setup.yml
 # EBS volume setup (mounting and formatting)
 ansible-playbook -i inventory/prod/hosts.yml playbooks/ebs-setup.yml
 
+# Deploy config-sync mechanism (fetches config from AWS SSM/Secrets Manager)
+ansible-playbook -i inventory/prod/hosts.yml playbooks/config-sync-setup.yml
+
 # Setup SSH keys for deployment
 aws secretsmanager get-secret-value --secret-id revenuelens/deployer_pem --query SecretString --output text > ~/.ssh/revenuelens-deployer.pem
 chmod 600 ~/.ssh/revenuelens-deployer.pem
@@ -96,23 +138,33 @@ chmod 600 ~/.ssh/revenuelens-deployer.pem
 
 ### Git Operations
 ```bash
-# For root project coordination - navigate to root directory
+# For root project documentation - navigate to root directory
 cd /home/gwichman/revenuelens
 git status
 git add .
-git commit -m "Your project-wide changes"
+git commit -m "Update documentation"
+git push
 
-# For Terraform changes - navigate to terraform directory first
+# For infrastructure Terraform changes - navigate to cloud-terraform directory
 cd revenuelens-cloud-terraform
 git status
 git add .
-git commit -m "Your terraform changes"
+git commit -m "Update infrastructure"
+git push
 
-# For Ansible changes - navigate to ansible directory first
+# For configuration Terraform changes - navigate to config-terraform directory
+cd revenuelens-config-terraform
+git status
+git add .
+git commit -m "Update application configuration"
+git push
+
+# For Ansible changes - navigate to ansible directory
 cd revenuelens-cloud-ansible
 git status
 git add .
-git commit -m "Your ansible changes"
+git commit -m "Update server configuration"
+git push
 
 # NEVER run git commands from the wrong directory
 # ALWAYS navigate to the specific component directory first
@@ -167,11 +219,19 @@ cd revenuelens-cloud-terraform/envs/dev
 - **Monitoring**: Comprehensive CloudWatch monitoring (production only)
 - **Email Security**: SES domain identity with SPF, DMARC, and DKIM records
 
-### Configuration Management (Ansible)
+### Application Configuration (Terraform - config-terraform)
+- **SSM Parameter Store**: Non-sensitive configuration (database hosts, ports, log levels, feature flags) - FREE
+- **Secrets Manager**: Sensitive credentials (API keys, passwords, tokens) - ~$0.40/secret/month
+- **IAM Policies**: EC2 instance permissions to read configuration
+- **Config Files**: 12 service-specific .auto.tfvars files (postgres, redis, logger, hubspot, etc.)
+- **Automatic Sync**: Config synced to EC2 every 15 minutes to `/app/config/*.env`
+
+### Server Configuration (Ansible - cloud-ansible)
 - **Base Role**: System packages, user management, directory setup
 - **Docker Role**: Docker and Docker Compose installation (version 2.20.2)
 - **Application Role**: Directory structure (/app/revenuelens.ai, /app/dashboard-react-app, /app/dashboard-pmf), certificates, log setup
 - **EBS Volumes Role**: Mounting and formatting dedicated EBS volumes
+- **Config-Sync Role**: Deploys sync script to fetch config from AWS every 15 minutes
 - **Monitoring Role**: Health checks, log rotation, monitoring tools
 
 ### Application Deployment (Manual)
@@ -201,12 +261,21 @@ cd revenuelens-cloud-terraform/envs/dev
 
 ## Integration Patterns
 
-### Terraform → Ansible Workflow
-1. **Terraform** provisions EC2 instances, RDS, networking, and security
-2. **Terraform** creates EBS volumes for dedicated filesystem separation
-3. **Ansible** configures the instances, mounts EBS volumes, and deploys the application
-4. **Secrets Manager** stores database credentials and SSH keys
-5. **Route 53** provides DNS with environment-specific subdomains
+### Infrastructure Deployment Workflow
+1. **Infrastructure Terraform (cloud-terraform)** provisions EC2 instances, RDS, networking, security, and EBS volumes
+2. **Configuration Terraform (config-terraform)** creates SSM parameters, IAM policies for config access
+3. **Ansible (cloud-ansible)** configures the instances, mounts EBS volumes, deploys config-sync script
+4. **Config-Sync** runs every 15 minutes on EC2, fetching configuration from SSM/Secrets Manager to `/app/config/*.env`
+5. **Application** reads configuration from .env files in /app/config/
+
+### Configuration Management Pattern
+**Traditional (old)**: Environment variables stored in Ansible inventory, manually updated on EC2 via Ansible playbooks
+**New AWS-Managed**:
+- Engineers edit `.auto.tfvars` files in config-terraform repo
+- `terraform apply` pushes to AWS SSM Parameter Store (free) or Secrets Manager (for secrets)
+- EC2 instances automatically sync config every 15 minutes via cron
+- No Ansible runs needed for config changes
+- Config changes tracked in Git with proper review process
 
 ### Security Model
 - SSH access restricted to specific IP addresses in `terraform.tfvars` (ssh_cidrs and admin_cidrs)
@@ -317,15 +386,24 @@ aws ses list-identities --identity-type Domain --profile revenuelens-prod
 
 ## Key Configuration Files
 
-### Terraform
+### Infrastructure Terraform (cloud-terraform)
 - `envs/{env}/terraform.tfvars`: Environment-specific variables including ssh_cidrs, admin_cidrs, instance_type, custom_domain, aws_profile
-- `envs/{env}/backend.tf`: Remote state configuration
-- `modules/`: Reusable infrastructure components
+- `envs/{env}/backend.tf`: Remote state configuration (S3 + DynamoDB)
+- `modules/`: Reusable infrastructure components (VPC, RDS, EC2, ALB, etc.)
 
-### Ansible
+### Configuration Terraform (config-terraform)
+- `envs/{env}/*.auto.tfvars`: Service-specific configuration files (postgres, redis, logger, hubspot, etc.)
+- `envs/{env}/main.tf`: Merges all service variables and invokes modules
+- `envs/{env}/variables.tf`: Variable declarations for all 12 services
+- `envs/{env}/backend.tf`: Remote state configuration (S3 + DynamoDB)
+- `modules/config-store/`: Creates SSM parameters and Secrets Manager entries
+- `modules/iam-permissions/`: Creates IAM policy for EC2 config access
+
+### Ansible (cloud-ansible)
 - `inventory/{env}/group_vars/all.yml`: Environment variables including database endpoints, EBS volume IDs, service ports
 - `inventory/{env}/hosts.yml`: Target server inventory
 - `ansible.cfg`: Ansible configuration and SSH settings
+- `roles/config-sync/defaults/main.yml`: Config sync settings (interval: 15 minutes, config dir: /app/config)
 
 ## EBS Volume Configuration
 
