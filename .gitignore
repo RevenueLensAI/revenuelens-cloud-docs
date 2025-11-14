@@ -11,3 +11,5 @@ revenuelens-cloud-ansible/
 *~
 *.log
 *.json
+.envrc
+env-vars-*/
