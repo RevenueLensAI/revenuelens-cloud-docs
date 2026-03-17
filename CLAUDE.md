@@ -446,6 +446,10 @@ When troubleshooting problems, prioritize information sources in this order:
 - Test solutions in development environment before applying to production
 - Document the root cause and official solution for future reference
 
+## Git Commit Preferences
+
+- Do not add Co-Authored-By lines to commit messages.
+
 ## Notes
 
 - Both environments use identical EC2 + ALB architecture
